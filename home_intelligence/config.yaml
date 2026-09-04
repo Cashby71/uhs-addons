@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.1.0"
+version: "0.2.0"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -92,6 +92,9 @@ options:
   go2rtc_ws_url: ""
   disk_path: "/data"
   log_level: info
+  stt_engine: ""
+  stt_model: ""
+  stt_language: ""
 
 schema:
   # Home Assistant base URL as seen FROM THIS CONTAINER. "http://homeassistant:8123"
@@ -119,3 +122,33 @@ schema:
   # appliance's data partition, which is the number that matters.
   disk_path: str?
   log_level: list(trace|debug|info|notice|warning|error|fatal)?
+  # OPEN-VOCABULARY SPEECH INPUT, via Home Assistant's Whisper add-on over the
+  # Wyoming protocol — the same way Piper already does text-to-speech. It is
+  # called "Whisper" in the add-on store; searching for "faster-whisper" (the
+  # library it runs) finds nothing. docs/deployment/whisper-addon.md holds the
+  # install steps and the measured N100 model table.
+  #
+  # ALL THREE ARE OPTIONAL AND DEFAULT EMPTY. Empty stt_engine means the app
+  # keeps doing exactly what it does today: on-device Vosk against a closed
+  # grammar, in the browser. An appliance updated from an older version sets
+  # none of these and changes in no way.
+  #
+  # The Home Assistant STT entity id, e.g. "stt.faster_whisper". This is the
+  # target AND the on/off switch, on purpose: a separate enable flag could
+  # disagree with the entity id, and a home where the two disagree is a support
+  # call nobody can diagnose from the log.
+  stt_engine: str?
+  # Which Whisper model that entity is running. This DECLARES it, it does
+  # not configure it — the model is chosen in the Whisper add-on's own
+  # Configuration tab. It is here because the app has to size its request
+  # timeout and its "still listening" copy to the model actually installed:
+  # measured on an N100, tiny.en is ~1.4 s per command and small.en is ~9.6 s,
+  # and no single timeout serves both. Recommended value here: base.en.
+  #
+  # Deliberately a free string, not a list(...): the add-on's model menu grows,
+  # and an enum here would reject a valid value on a customer's appliance during
+  # an update. Valid values are in docs/deployment/whisper-addon.md.
+  stt_model: str?
+  # Language tag handed to the STT engine, e.g. "en". Empty leaves it to the
+  # engine's own configured default.
+  stt_language: str?
