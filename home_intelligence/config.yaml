@@ -1,0 +1,121 @@
+# Home Intelligence — Home Assistant add-on manifest.
+#
+# This repo is a PUBLIC add-on repository containing manifests only. The source
+# lives in the private Cashby71/UHS-HomeOS, which builds and publishes the image
+# to GHCR; the Supervisor here only needs to know the name and where to pull it.
+#
+# That split is deliberate: Home Assistant clones an add-on repository to read
+# this file, and it cannot authenticate to a private one — so the alternative
+# was publishing the entire product source.
+#
+# To ship an update: build and push the image from the source repo, then bump
+# `version:` below to match the new tag.
+
+name: Home Intelligence
+version: "0.1.0"
+slug: home_intelligence
+description: >-
+  The branded local interface for the Home Intelligence Platform. Runs beside
+  Home Assistant on the appliance and serves the in-wall wall panel, phones and
+  laptops on the home network.
+url: https://github.com/Cashby71/UHS-HomeOS
+# PREBUILT IMAGE. With this set, a customer's Supervisor PULLS a published image
+# instead of compiling the app on their appliance. Without it, every N100 would
+# run npm install and a Next build locally — slow, needing internet at install
+# time, and producing a subtly different artifact per house. `{arch}` is
+# substituted by the Supervisor; `version:` above is the tag it pulls.
+#
+# Comment this line out to build locally from the Dockerfile instead, which is
+# what you want when testing a change on a bench appliance.
+image: ghcr.io/cashby71/home-intelligence-{arch}
+
+# amd64 is the N100 appliance (SOP-HI-001 §01) and the only target we ship on.
+# aarch64 is kept building for bench work on Pi-class hardware; both are Alpine
+# musl, so the Prisma engine story is identical on each.
+arch:
+  - amd64
+  - aarch64
+
+# The Home Assistant base image already provides s6-overlay as its init, so the
+# Supervisor must not add another one.
+init: false
+
+# Long-running service, started after Home Assistant is up — the app opens a
+# WebSocket to HA at boot (instrumentation.ts).
+startup: application
+boot: auto
+
+# Restart the add-on if the interface stops answering. /api/health is a plain
+# JSON read of computed home health.
+watchdog: "http://[HOST]:[PORT:4000]/api/health"
+
+# Publish the interface on the LAN. The Pi Touch Display 2 kiosk is a THIN
+# CLIENT — it runs Chromium pointed at this port (deploy/start-kiosk.sh) — and
+# the homeowner's phone and laptop reach the same address. Ingress alone would
+# not serve them, which is why the port is mapped. See docs/deployment/addon.md
+# § Ingress for why ingress is not declared.
+ports:
+  4000/tcp: 4000
+ports_description:
+  4000/tcp: >-
+    Home Intelligence interface — the wall panel, phones and laptops connect
+    here. Leave it published.
+
+# /data is the add-on's persistent volume and is the contract with the app:
+#   UHS_DATA_DIR = /data
+#   DATABASE_URL = file:/data/home-intelligence.db
+#   clips        = /data/clips
+# It survives add-on updates, which is the whole point of this packaging.
+map:
+  - type: data
+    read_only: false
+
+# CAMERA FOOTAGE MUST NOT RIDE OUT IN A BACKUP. Supervisor backups of an add-on
+# include /data, and HA backups are routinely uploaded to cloud storage — which
+# would break the exact promise the business sells (DOCTRINE §3: "Camera video &
+# audio stays in the home"). Excluded here rather than trusted to a technician.
+backup_exclude:
+  - clips/**
+
+# Lets the add-on reach Home Assistant through the Supervisor proxy
+# (http://supervisor/core with SUPERVISOR_TOKEN) as a fallback when no
+# long-lived token is configured. The normal path is a direct URL + token below.
+homeassistant_api: true
+
+options:
+  homeassistant_url: "http://homeassistant:8123"
+  homeassistant_token: ""
+  secret_key: ""
+  auth_mode: enforce
+  public_base_url: ""
+  go2rtc_api_url: ""
+  go2rtc_ws_url: ""
+  disk_path: "/data"
+  log_level: info
+
+schema:
+  # Home Assistant base URL as seen FROM THIS CONTAINER. "http://homeassistant:8123"
+  # is the Supervisor's DNS name for Home Assistant Core and is right on a
+  # standard appliance.
+  homeassistant_url: str?
+  # Long-lived access token: HA profile -> Security -> Long-lived access tokens.
+  homeassistant_token: password?
+  # REQUIRED. Encrypts integration tokens at rest (AES-256-GCM). 64 hex chars:
+  #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  # Changing it makes every already-stored integration token undecryptable.
+  secret_key: password
+  # "enforce" on every customer appliance. "open" resolves unknown callers to
+  # the household owner and is for a bench machine only.
+  auth_mode: list(enforce|open)
+  # HTTPS origin the homeowner's PHONE uses, if one exists (Home Handoff writes
+  # it into the NFC tag / QR code). Leave empty on a plain LAN install.
+  public_base_url: str?
+  # go2rtc, for sub-second live video (docs/deployment/go2rtc-addon.md). Use the
+  # appliance's LAN address, not localhost: the go2rtc add-on is a different
+  # container. e.g. http://192.168.0.70:1984 and ws://192.168.0.70:1984
+  go2rtc_api_url: str?
+  go2rtc_ws_url: str?
+  # Which filesystem the System Health disk gauge measures. /data is the
+  # appliance's data partition, which is the number that matters.
+  disk_path: str?
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?
