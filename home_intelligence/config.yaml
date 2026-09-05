@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.1"
+version: "0.2.2"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -95,6 +95,9 @@ options:
   stt_engine: ""
   stt_model: ""
   stt_language: ""
+  tts_engine: ""
+  tts_voice: ""
+  tts_language: ""
 
 schema:
   # Home Assistant base URL as seen FROM THIS CONTAINER. "http://homeassistant:8123"
@@ -152,3 +155,6 @@ schema:
   # Language tag handed to the STT engine, e.g. "en". Empty leaves it to the
   # engine's own configured default.
   stt_language: str?
+  tts_engine: ""
+  tts_voice: ""
+  tts_language: ""
