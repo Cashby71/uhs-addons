@@ -155,6 +155,6 @@ schema:
   # Language tag handed to the STT engine, e.g. "en". Empty leaves it to the
   # engine's own configured default.
   stt_language: str?
-  tts_engine: ""
-  tts_voice: ""
-  tts_language: ""
+  tts_engine: str?
+  tts_voice: str?
+  tts_language: str?
