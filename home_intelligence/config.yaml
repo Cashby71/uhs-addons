@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.5"
+version: "0.2.6"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -54,12 +54,30 @@ watchdog: "http://[HOST]:[PORT:4000]/api/health"
 # the homeowner's phone and laptop reach the same address. Ingress alone would
 # not serve them, which is why the port is mapped. See docs/deployment/addon.md
 # § Ingress for why ingress is not declared.
+#
+# DO NOT UNPUBLISH THIS, INCLUDING ON A HOME THAT HAS HTTPS.
+#
+# A home can be given a real certificate by putting a reverse-proxy add-on in
+# front of this one on :443 (docs/deployment/https-addon.md). The Supervisor
+# would let us set `4000/tcp: null` afterwards to take the plaintext port off
+# the LAN, and it looks like tidying up. It is not. This port is:
+#
+#   1. the WALL PANEL'S ORIGIN. The panel deliberately stays on plain HTTP —
+#      it already has a secure context from a Chromium flag, and its planted
+#      hi_panel credential is scoped to this origin.
+#   2. the SUPERVISOR WATCHDOG'S TARGET, three lines above.
+#   3. the RESCUE PATH. If the certificate lapses, or the proxy will not start,
+#      a phone falls back to here and the whole app still works — everything
+#      except the microphone and the offline grocery list. That is the
+#      difference between "voice stopped working" and "the house is down",
+#      which is the failure this product can least afford.
 ports:
   4000/tcp: 4000
 ports_description:
   4000/tcp: >-
     Home Intelligence interface — the wall panel, phones and laptops connect
-    here. Leave it published.
+    here. Leave it published, even on a home served over HTTPS: it is the wall
+    panel's address and the fallback when HTTPS is unavailable.
 
 # /data is the add-on's persistent volume and is the contract with the app:
 #   UHS_DATA_DIR = /data
@@ -115,8 +133,24 @@ schema:
   # "enforce" on every customer appliance. "open" resolves unknown callers to
   # the household owner and is for a bench machine only.
   auth_mode: list(enforce|open)
-  # HTTPS origin the homeowner's PHONE uses, if one exists (Home Handoff writes
-  # it into the NFC tag / QR code). Leave empty on a plain LAN install.
+  # THE HTTPS ORIGIN THE HOMEOWNER'S PHONE USES. Bare origin, no path and no
+  # trailing slash, e.g. https://home.amber-harbor-4f21.homes.example.com
+  #
+  # A secure context is the only thing standing between a phone and three
+  # shipped features — assistant voice input, the doorbell's live talk button,
+  # and the offline grocery list's cold reload (docs/deployment/lan-tls.md).
+  # Home Handoff also writes this into the panel's QR code and the NFC tag.
+  #
+  # SETTING IT DOES NOT MAKE HTTPS HAPPEN. TLS terminates in a reverse-proxy
+  # add-on in front of this one; this option only tells the app which name the
+  # phone will use. The design and the install procedure are in
+  # docs/deployment/https-addon.md.
+  #
+  # EMPTY IS VALID AND IS THE DEFAULT — leave it empty on a plain LAN install.
+  # An appliance updated from an older version sets nothing here and behaves
+  # identically to the day before. A wrong value is never fatal: run.sh warns
+  # and carries on, because a bad QR code is a support call and a house that
+  # will not start is not.
   public_base_url: str?
   # go2rtc, for sub-second live video (docs/deployment/go2rtc-addon.md). Use the
   # appliance's LAN address, not localhost: the go2rtc add-on is a different
