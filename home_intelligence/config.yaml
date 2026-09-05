@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.2"
+version: "0.2.3"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -90,14 +90,16 @@ options:
   public_base_url: ""
   go2rtc_api_url: ""
   go2rtc_ws_url: ""
-  disk_path: "/data"
-  log_level: info
   stt_engine: ""
   stt_model: ""
   stt_language: ""
   tts_engine: ""
   tts_voice: ""
   tts_language: ""
+  tts_wyoming_host: ""
+  tts_wyoming_port: ""
+  disk_path: "/data"
+  log_level: info
 
 schema:
   # Home Assistant base URL as seen FROM THIS CONTAINER. "http://homeassistant:8123"
@@ -121,10 +123,6 @@ schema:
   # container. e.g. http://192.168.0.70:1984 and ws://192.168.0.70:1984
   go2rtc_api_url: str?
   go2rtc_ws_url: str?
-  # Which filesystem the System Health disk gauge measures. /data is the
-  # appliance's data partition, which is the number that matters.
-  disk_path: str?
-  log_level: list(trace|debug|info|notice|warning|error|fatal)?
   # OPEN-VOCABULARY SPEECH INPUT, via Home Assistant's Whisper add-on over the
   # Wyoming protocol — the same way Piper already does text-to-speech. It is
   # called "Whisper" in the add-on store; searching for "faster-whisper" (the
@@ -155,6 +153,72 @@ schema:
   # Language tag handed to the STT engine, e.g. "en". Empty leaves it to the
   # engine's own configured default.
   stt_language: str?
+  # ATLAS'S VOICE, via Home Assistant's Piper add-on over Wyoming — the same
+  # transport Whisper uses above, and the same one the doorbell already speaks
+  # through. Neural, fully local, and already installed on most appliances.
+  #
+  # ALL THREE ARE OPTIONAL AND DEFAULT EMPTY, and empty is the RECOMMENDED
+  # setting: the app discovers a local text-to-speech engine on its own and uses
+  # it. An appliance updated from an older version sets none of these, and the
+  # only thing that changes is that the wall panel stops sounding like espeak.
+  #
+  # Empty here does NOT mean "off". Leave all three blank on a normal install.
+  #
+  # The Home Assistant TTS entity id, e.g. "tts.piper". Set it only to pin one
+  # engine on a hub with several. The literal value "off" disables the hub voice
+  # and keeps the browser's own speech synthesis — the escape hatch if a home's
+  # Piper is misbehaving and a truck roll is a week away.
+  #
+  # A CLOUD ENGINE IS REFUSED HERE EVEN IF IT IS PINNED. Everything Atlas says
+  # describes this house, and a cloud voice synthesizes by receiving it
+  # (DOCTRINE §3). Naming an engine selects it; it does not authorise it.
   tts_engine: str?
+  # Which Piper voice Atlas speaks in, e.g. "en_US-ryan-high". Empty picks the
+  # best match from a preference list against the voices the hub actually
+  # advertises, and falls back to whatever the Piper add-on is configured with.
+  #
+  # Piper ships ~50 English voices at four quality tiers; "medium" and "high"
+  # are the ones worth using on a wall panel's speaker. Whatever you set must be
+  # a voice the Piper add-on has downloaded, or the hub returns an error and the
+  # panel drops to the browser voice. Check the Piper add-on's own Configuration
+  # tab for what is installed.
   tts_voice: str?
+  # Language tag handed to the TTS engine, e.g. "en-US". Empty leaves it to the
+  # engine's own default.
   tts_language: str?
+  # WHERE PIPER ITSELF LISTENS, so this interface can talk to it directly rather
+  # than through Home Assistant's text-to-speech layer.
+  #
+  # Piper speaks the Wyoming protocol on its own TCP port, and this add-on runs
+  # on the same Docker network as the Piper add-on, so it can simply ask. That
+  # is one fewer hop and one fewer dependency — and it matters: Home Assistant
+  # Core 2026.9.0 broke its own TTS path outright by transcoding Piper's audio
+  # with ffmpeg, and every hub in the fleet lost its voice at once through a
+  # layer we neither own nor need.
+  #
+  # BOTH ARE OPTIONAL AND DEFAULT EMPTY, and empty is the RECOMMENDED setting:
+  # it means "core-piper" and 10200, which is where the official Piper add-on
+  # answers on a standard appliance. An appliance updated from an older version
+  # sets neither. If nothing is listening there — a home with no Piper add-on —
+  # the connection is refused in milliseconds and the interface uses Home
+  # Assistant exactly as it did before.
+  #
+  # The literal value "off" in tts_wyoming_host disables the direct route and
+  # leaves Home Assistant as the only one. Setting `tts_engine` to a specific
+  # entity does the same, because naming an entity is an instruction about which
+  # engine speaks and this must not quietly route around it.
+  #
+  # THE ADDRESS MUST BE INSIDE THE HOME. Everything the assistant says describes
+  # this house (DOCTRINE §3), so anything that is not loopback, a private
+  # address or a local name is refused before a connection is opened — whatever
+  # is typed here.
+  tts_wyoming_host: str?
+  # The port, e.g. "10200". A STRING and not an int on purpose: an int schema
+  # cannot carry the empty default above, and a required option would break
+  # every already-installed home on update. A value that is not a usable port
+  # falls back to 10200 rather than failing to start.
+  tts_wyoming_port: str?
+  # Which filesystem the System Health disk gauge measures. /data is the
+  # appliance's data partition, which is the number that matters.
+  disk_path: str?
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?
