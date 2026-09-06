@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.8"
+version: "0.2.9"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -106,8 +106,6 @@ options:
   secret_key: ""
   auth_mode: enforce
   public_base_url: ""
-  go2rtc_api_url: ""
-  go2rtc_ws_url: ""
   stt_engine: ""
   stt_model: ""
   stt_language: ""
@@ -116,6 +114,8 @@ options:
   tts_language: ""
   tts_wyoming_host: ""
   tts_wyoming_port: ""
+  talkback_live: false
+  talkback_sink: console
   push_vapid_public_key: ""
   push_vapid_private_key: ""
   push_contact: ""
@@ -155,11 +155,6 @@ schema:
   # and carries on, because a bad QR code is a support call and a house that
   # will not start is not.
   public_base_url: str?
-  # go2rtc, for sub-second live video (docs/deployment/go2rtc-addon.md). Use the
-  # appliance's LAN address, not localhost: the go2rtc add-on is a different
-  # container. e.g. http://192.168.0.70:1984 and ws://192.168.0.70:1984
-  go2rtc_api_url: str?
-  go2rtc_ws_url: str?
   # OPEN-VOCABULARY SPEECH INPUT, via Home Assistant's Whisper add-on over the
   # Wyoming protocol — the same way Piper already does text-to-speech. It is
   # called "Whisper" in the add-on store; searching for "faster-whisper" (the
@@ -255,6 +250,51 @@ schema:
   # every already-installed home on update. A value that is not a usable port
   # falls back to 10200 rather than failing to start.
   tts_wyoming_port: str?
+  # LIVE MICROPHONE AT THE DOOR — "hold the button and be heard", on top of the
+  # spoken replies that already ship.
+  #
+  # FALSE IS THE DEFAULT AND IS CORRECT UNTIL SOMEBODY HAS LISTENED. This option
+  # does not mean "the code is finished" — it means MICROPHONE AUDIO HAS BEEN
+  # HEARD COMING OUT OF THIS HOME'S DOORBELL. Nobody can know that from a
+  # keyboard, and it is a fact about one house: the last hop is fire-and-forget
+  # UDP with no acknowledgement, so nothing in the appliance can detect whether
+  # the camera played a sound. docs/deployment/two-way-audio.md is the
+  # ten-minute test at the door that earns turning this on.
+  #
+  # An appliance updated from an older version gets `false` and behaves exactly
+  # as it did the day before: the doorbell speaks whatever the panel taps, which
+  # is the verified path and stays the fallback in every failure case.
+  #
+  # WHAT IT CANNOT DO: put a Talk button on a camera with no speaker. That gate
+  # is `supportsTalkback`, computed at sync time from the camera's own hasSpeaker
+  # flag, and no setting can override it — a G6 Turret is offered nothing at all
+  # whatever is set here.
+  #
+  # IT ALSO NEEDS A SECURE CONTEXT. Browsers hand out microphones only over
+  # HTTPS or localhost. Turning this on does not give the wall panel a
+  # microphone; the panel's Chromium needs its origin flag, and a phone needs
+  # `public_base_url` above (docs/deployment/two-way-audio.md § Prerequisites).
+  # Where the browser refuses, the panel says so in plain words.
+  talkback_live: bool?
+  # WHICH AUDIO FORMAT THE DOORBELL IS SENT. Only matters when `talkback_live`
+  # is on, and only if the homeowner holds the button and the visitor hears
+  # nothing at all.
+  #
+  # "console" — THE DEFAULT AND THE RIGHT ANSWER ALMOST EVERYWHERE: send the
+  #   format the camera itself asked for when the appliance armed it.
+  # "legacy-aac" — the older format some cameras play instead. The field reports
+  #   genuinely conflict: Opus is verified working on a Doorbell Lite, and an AI
+  #   Turret owner got sound only from AAC at the same address.
+  #
+  # THIS CANNOT BE DETECTED, WHICH IS WHY IT IS AN OPTION. The transport is
+  # fire-and-forget UDP: no acknowledgement, no error, no sound. There is
+  # nothing to retry on and nothing to measure — only a person standing at the
+  # door can tell. So: if live talk is silent, switch this, restart, and listen
+  # again. Record which camera model needed it.
+  #
+  # An unrecognised value follows the console rather than failing to start: a
+  # typo here must not take two-way audio away from a home.
+  talkback_sink: list(console|legacy-aac)?
   # PUSH NOTIFICATIONS — "Hey Atlas, send the grocery list to my phone" arriving
   # on a registered phone with no tap.
   #
