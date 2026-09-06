@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.6"
+version: "0.2.7"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
@@ -116,6 +116,9 @@ options:
   tts_language: ""
   tts_wyoming_host: ""
   tts_wyoming_port: ""
+  push_vapid_public_key: ""
+  push_vapid_private_key: ""
+  push_contact: ""
   disk_path: "/data"
   log_level: info
 
@@ -252,6 +255,42 @@ schema:
   # every already-installed home on update. A value that is not a usable port
   # falls back to 10200 rather than failing to start.
   tts_wyoming_port: str?
+  # PUSH NOTIFICATIONS — "Hey Atlas, send the grocery list to my phone" arriving
+  # on a registered phone with no tap.
+  #
+  # BOTH EMPTY IS VALID AND IS THE DEFAULT. Empty means push is simply off: the
+  # app reports `not_configured` and the other way of getting something to a
+  # phone — the NFC tap — works exactly as before. (There is no production QR
+  # code; it is a dev-only affordance behind handoffDevToolsEnabled.) An
+  # appliance updated from an older version sets neither and changes in no way.
+  #
+  # Generate a pair with:
+  #     node scripts/generate-vapid-keys.mjs
+  #
+  # ONE KEYPAIR PER APPLIANCE. Never reuse across homes: the VAPID key is what a
+  # push service uses to decide the sender is who it claims, so a shared fleet
+  # key would let any appliance holding it notify any other household's
+  # registered phone. Same reasoning that keeps a zone-scoped DNS token off
+  # customer hardware (docs/deployment/https-addon.md § 4).
+  #
+  # PUSH REQUIRES THE INTERNET, and that is not a violation of DOCTRINE §1 — it
+  # is a convenience layered on top of a home that already works without it.
+  # Nothing in the path of daily control touches this. With the WAN unplugged
+  # the notification does not arrive and everything else is unaffected.
+  #
+  # WHAT ACTUALLY TRAVELS: an opaque id and a key into a fixed three-phrase
+  # catalogue. No route, no title, no device state, no household identifier.
+  # The phone exchanges the id WITH THE HOME for the real destination.
+  # See lib/push/wire.ts.
+  push_vapid_public_key: str?
+  # The private half. A secret — record it in the job file, never in a ticket.
+  # Losing it is not fatal: regenerate, and every phone silently re-subscribes
+  # on its next visit.
+  push_vapid_private_key: password?
+  # Contact the push service can reach the operator on if a subscription
+  # misbehaves — "mailto:support@example.com". Optional; RFC 8292 allows the
+  # claim to be absent, and some services log a warning without it.
+  push_contact: str?
   # Which filesystem the System Health disk gauge measures. /data is the
   # appliance's data partition, which is the number that matters.
   disk_path: str?
