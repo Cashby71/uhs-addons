@@ -12,7 +12,7 @@
 # `version:` below to match the new tag.
 
 name: Home Intelligence
-version: "0.2.9"
+version: "0.2.10"
 slug: home_intelligence
 description: >-
   The branded local interface for the Home Intelligence Platform. Runs beside
